@@ -2,9 +2,11 @@
 
 ## Overview
 
-This card and python allow you to run a bi-directional bridge translating OSC messages to and from CV on the music thing modular workshop computer.
+This card and python allow you to run a bi-directional bridge translating OSC messages to and from CV on the [Music Thing Modular Workshop](https://www.musicthing.co.uk/workshopsystem/) computer.
 
 All the inputs and outputs are used, and the 3 knobs and switch also send OSC messages.
+
+Careful with the switch though - toggling it down halts the code and will mount the card so you can write a new uf2.
 
 ## Running
 
@@ -12,9 +14,9 @@ Write `wc_osc_bridge.uf2` to a card.
 
 Start up the computer, you should get an LED pattern of 3 descending lines twice, which identifies the card.
 
-Plug a USB from your computer into Computer.
+Plug a USB lead from your computer into Computer.
 
-I'm using `uv` to manage the dependencies so [install uv](https://docs.astral.sh/uv/getting-started/installation/) if you've not got that.
+I'm using `uv` to manage the python dependencies so [install uv](https://docs.astral.sh/uv/getting-started/installation/) if you've not got that.
 
 Then:
 
