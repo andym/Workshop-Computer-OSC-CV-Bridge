@@ -24,7 +24,7 @@ Then:
 
 You should get output like:
 
-```shell
+```text
 Scanning for Workshop Computer...
   candidate: /dev/cu.usbmodem101  (Pico)
 Opening serial: /dev/cu.usbmodem101
