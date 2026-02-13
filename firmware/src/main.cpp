@@ -140,9 +140,7 @@ public:
   OSCBridge() { EnableNormalisationProbe(); }
 };
 
-// Constructed on core 0 in main() (before core 1 launch) so that the
-// ComputerCard constructor's flash_get_unique_id() call doesn't disable
-// XIP while the other core is executing flash-resident code.
+// Pointer for core 1 to access the bridge instance constructed in main().
 static OSCBridge *bridge_ptr = nullptr;
 
 // Core 1 entry: runs audio pipeline (blocks forever)
@@ -234,10 +232,10 @@ static void __not_in_flash_func(usb_loop)() {
 // ---------------------------------------------------------------------------
 
 int main() {
-  // Construct OSCBridge on core 0 BEFORE launching core 1.
-  // The ComputerCard constructor calls flash_get_unique_id() which
-  // temporarily disables XIP (flash execute-in-place). If core 1 were
-  // running flash-resident code at that moment, it would crash.
+  // OSCBridge must exist before core 1 launch since core 1 immediately
+  // calls RunWithBootSupport() on it. Note: ComputerCard's constructor
+  // also calls flash_get_unique_id() which disables XIP temporarily —
+  // a hazard if the other core were running flash-resident code.
   static OSCBridge bridge;
   bridge_ptr = &bridge;
 

@@ -4,6 +4,7 @@
 # dependencies = [
 #     "pyserial",
 #     "python-osc",
+#     "zeroconf",
 # ]
 # ///
 """
@@ -58,12 +59,14 @@ OSC setup:
 """
 
 import argparse
+import socket
 import struct
 import threading
 import time
 import sys
 import serial
 from pythonosc import udp_client, dispatcher, osc_server
+from zeroconf import ServiceInfo, Zeroconf
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +99,18 @@ def native_to_volts(native: int) -> float:
 # ---------------------------------------------------------------------------
 # Serial helpers
 # ---------------------------------------------------------------------------
+
+def get_local_ip():
+    """Get the local network IP address (not 127.0.0.1)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except Exception:
+        return "127.0.0.1"
+    finally:
+        s.close()
+
 
 def find_wc_port():
     """Try to auto-detect a Workshop Computer serial port."""
@@ -167,11 +182,8 @@ class OutputBridge:
                                  vals[0], vals[1], vals[2], vals[3])
             self.ser.write(packet)
 
-            if self.verbose:
-                p1 = "H" if self.pulse[0] else "L"
-                p2 = "H" if self.pulse[1] else "L"
-                print(f"  [OSC→WC] {vals[0]:+5d} {vals[1]:+5d} "
-                      f"{vals[2]:+5d} {vals[3]:+5d} pulse={p1},{p2}")
+        if self.verbose:
+            print(f"  [OSC in] {address} {args[0]}")
 
 
 # ---------------------------------------------------------------------------
@@ -243,13 +255,11 @@ def reader_thread(ser, osc_client, verbose=False):
                 osc_client.send_message("/pulse/2", 1.0 if pulse2 else 0.0)
 
                 if verbose:
-                    p1 = "H" if pulse1 else "L"
-                    p2 = "H" if pulse2 else "L"
-                    sw = switch_names[switch_pos] if switch_pos < 3 else "?"
-                    print(f"  [WC→OSC] cv={cv1:+5d},{cv2:+5d} "
-                          f"audio={audio1:+5d},{audio2:+5d} "
-                          f"knobs={knob_main:4d},{knob_x:4d},{knob_y:4d} "
-                          f"sw={sw} pulse={p1},{p2}")
+                    print(f"  [OSC out] /ch/1-4={native_to_volts(audio1):.2f},"
+                          f"{native_to_volts(audio2):.2f},"
+                          f"{native_to_volts(cv1):.2f},"
+                          f"{native_to_volts(cv2):.2f} "
+                          f"/knob={knob_main / 4095.0:.2f},{knob_x / 4095.0:.2f},{knob_y / 4095.0:.2f}")
 
         except serial.SerialException:
             print("Serial connection lost!")
@@ -280,12 +290,17 @@ def main():
         help="UDP port to RECEIVE OSC (WC outputs) (default: 7000)"
     )
     parser.add_argument(
-        "--osc-ip", default="127.0.0.1",
-        help="IP address for OSC (default: 127.0.0.1)"
+        "--osc-send-ip", default="127.0.0.1",
+        help="IP to send OSC to (default: 127.0.0.1)"
     )
     parser.add_argument(
-        "--verbose", "-v", action="store_true",
-        help="Print all messages"
+        "--localhost", action="store_true",
+        help="Listen on 127.0.0.1 only (default: 0.0.0.0, all interfaces)"
+    )
+    parser.add_argument(
+        "--show-traffic", "-s", nargs="?", const="all",
+        choices=["all", "in", "out"],
+        help="Show OSC traffic: all (default), in (from network), out (to network)"
     )
     args = parser.parse_args()
 
@@ -306,32 +321,54 @@ def main():
     ser = open_serial(port)
 
     # --- Set up the output bridge ---
-    bridge = OutputBridge(ser, verbose=args.verbose)
+    show_in = args.show_traffic in ("all", "in")
+    show_out = args.show_traffic in ("all", "out")
+    bridge = OutputBridge(ser, verbose=show_in)
 
     # --- Set up OSC ---
-    print(f"OSC send → {args.osc_ip}:{args.osc_send_port}  (WC inputs → OSC)")
-    client = udp_client.SimpleUDPClient(args.osc_ip, args.osc_send_port)
+    listen_ip = "127.0.0.1" if args.localhost else "0.0.0.0"
+    local_ip = get_local_ip()
 
-    print(f"OSC recv ← {args.osc_ip}:{args.osc_recv_port}  (OSC → WC outputs)")
+    print(f"OSC send → {args.osc_send_ip}:{args.osc_send_port}  (WC inputs → OSC)")
+    client = udp_client.SimpleUDPClient(args.osc_send_ip, args.osc_send_port)
+
+    print(f"OSC recv ← {listen_ip}:{args.osc_recv_port}  (OSC → WC outputs)")
     disp = dispatcher.Dispatcher()
     disp.map("/ch/*", bridge.osc_handler)
     disp.map("/pulse/*", bridge.osc_handler)
 
     osc_srv = osc_server.ThreadingOSCUDPServer(
-        (args.osc_ip, args.osc_recv_port), disp
+        (listen_ip, args.osc_recv_port), disp
     )
+
+    # --- Advertise via Zeroconf (mDNS) for TouchOSC discovery ---
+    zc = None
+    zc_info = None
+    if not args.localhost:
+        try:
+            zc_info = ServiceInfo(
+                "_osc._udp.local.",
+                "WC OSC Bridge._osc._udp.local.",
+                addresses=[socket.inet_aton(local_ip)],
+                port=args.osc_recv_port,
+            )
+            zc = Zeroconf()
+            zc.register_service(zc_info)
+            print(f"Zeroconf: advertising as 'WC OSC Bridge' on {local_ip}:{args.osc_recv_port}")
+        except Exception as e:
+            print(f"Zeroconf: could not advertise ({e})")
 
     # --- Start reader thread ---
     threading.Thread(
         target=reader_thread,
-        args=(ser, client, args.verbose),
+        args=(ser, client, show_out),
         daemon=True,
     ).start()
 
     print(f"\nBridge running (send-on-receive, out={OUTPUT_PACKET_SIZE}B in={INPUT_PACKET_SIZE}B). Ctrl+C to quit.\n")
-    print("  OSC config:")
-    print(f"    Client (sends to bridge):  IP {args.osc_ip}  Port {args.osc_recv_port}")
-    print(f"    Server (receives from bridge):  IP {args.osc_ip}  Port {args.osc_send_port}")
+    print(f"  Local IP: {local_ip}")
+    print(f"  Send to bridge:      port {args.osc_recv_port}  (/ch/1-4, /pulse/1-2)")
+    print(f"  Receive from bridge: port {args.osc_send_port}  (/ch/1-4, /knob/*, /switch, /pulse/1-2)")
     print()
 
     try:
@@ -346,6 +383,9 @@ def main():
             pass
         ser.close()
         osc_srv.shutdown()
+        if zc:
+            zc.unregister_service(zc_info)
+            zc.close()
         print("Done.")
 
 
