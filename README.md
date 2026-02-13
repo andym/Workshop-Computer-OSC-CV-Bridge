@@ -12,7 +12,7 @@ Careful with the switch though - toggling it down halts the code and will mount 
 
 ## Running
 
-Write `wc_osc_bridge.uf2` to a card.
+Write [wc_osc_bridge.uf2](wc_osc_bridge.uf2) to a card.
 
 Start up the computer, you should get an LED pattern of 3 descending lines twice, which identifies the card.
 
