@@ -84,6 +84,10 @@ Patch some CV from your virtual rack to the inputs and it'll come out of the CV 
 
 You'll need to press the config button on cvOSCcv to change some of the paths to e.g. `/knob/main` on the output side, or `/pulse/1/` on the input side.
 
+## TouchOSC
+
+[TouchOSC](https://hexler.net/touchosc) works as well. With the python running on your computer make a new OSC connection, if you `Browse` you should be able to see `WC OSC Bridge`. The `Send Port` is `7000` The `Receive Port` is 7001. If you press the `(i)` next to the `Receive port` you can see the ip address of the TouchOSC host. Restart the python with this address e.g. `uv run wc_osc_bridge.py --osc-send-ip 192.168.1.182` this enables communication to and from `TouchOSC` and the Workshop Computer.
+
 ## Source
 
 https://github.com/andym/Workshop-Computer-OSC-CV-Bridge
