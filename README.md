@@ -4,6 +4,8 @@
 
 This card and python allow you to run a bi-directional bridge translating OSC messages to and from CV on the [Music Thing Modular Workshop](https://www.musicthing.co.uk/workshopsystem/) computer.
 
+OSC <-> Python server <-> Workshop Computer
+
 All the inputs and outputs are used, and the 3 knobs and switch also send OSC messages.
 
 Careful with the switch though - toggling it down halts the code and will mount the card so you can write a new uf2.
