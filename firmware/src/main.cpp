@@ -24,7 +24,7 @@
 //   (Python remaps so inputs go 1-2-3-4 top-to-bottom: audio, CV)
 //
 // All values are ComputerCard native range: -2048 to +2047
-// (approx -5V to +10V, 15V span). Voltage conversion is done in Python.
+// (approx -6V to +6V, 12V span). Voltage conversion is done in Python.
 
 // ---------------------------------------------------------------------------
 // Shared state between cores

@@ -46,7 +46,7 @@ Workshop Computer input → OSC mapping:
   Pulse In 2  →  /pulse/2    (1.0 or 0.0)
 
 All values are ComputerCard native range: -2048 to +2047
-(approx -5V to +10V, 15V span). Voltage conversion is done here in Python.
+(approx -6V to +6V, 12V span). Voltage conversion is done here in Python.
 
 Usage:
   uv run wc_osc_bridge.py --port /dev/tty.usbmodem*
@@ -79,14 +79,14 @@ OUTPUT_PACKET_SIZE = 10  # host → device
 INPUT_PACKET_SIZE = 16   # device → host
 
 # ComputerCard native range: -2048 to 2047
-# Maps to approximately -5V to +10V (15V range)
+# Maps to approximately -6V to +6V (12V range)
 NATIVE_MIN = -2048
 NATIVE_MAX = 2047
-VOLTAGE_RANGE = 15.0  # total voltage span
+VOLTAGE_RANGE = 12.0  # total voltage span
 
 
 def volts_to_native(volts: float) -> int:
-    """Convert voltage (-5V to +10V) to ComputerCard native int16 (-2048 to 2047)."""
+    """Convert voltage (-6V to +6V) to ComputerCard native int16 (-2048 to 2047)."""
     native = int(volts / VOLTAGE_RANGE * (NATIVE_MAX - NATIVE_MIN + 1))
     return max(NATIVE_MIN, min(NATIVE_MAX, native))
 
@@ -164,7 +164,7 @@ class OutputBridge:
         except (ValueError, IndexError):
             return
 
-        volts = max(-5.0, min(10.0, volts))
+        volts = max(-6.0, min(6.0, volts))
         native = volts_to_native(volts)
 
         with self.lock:
@@ -190,9 +190,10 @@ class OutputBridge:
 # Workshop Computer → OSC (binary USB → OSC)
 # ---------------------------------------------------------------------------
 
-def reader_thread(ser, osc_client, verbose=False):
+def reader_thread(ser, osc_client, verbose=False, threshold=0.005):
     """
     Reads binary packets from Workshop Computer and sends as OSC.
+    Only sends a message when the value has changed by more than threshold.
 
     Device→Host packet (16 bytes):
       0xC1, flags, int16 cv1, int16 cv2, int16 audio1, int16 audio2,
@@ -201,7 +202,15 @@ def reader_thread(ser, osc_client, verbose=False):
     flags: bit 0 = pulse1, bit 1 = pulse2, bits 2-3 = switch (0/1/2)
     """
     buf = bytearray()
-    switch_names = ["down", "middle", "up"]
+    last = {}  # address → last sent value
+
+    def send_if_changed(address, value):
+        prev = last.get(address)
+        if prev is None or abs(value - prev) > threshold:
+            osc_client.send_message(address, value)
+            last[address] = value
+            if verbose:
+                print(f"  [OSC out] {address} {value:.4f}")
 
     while True:
         try:
@@ -239,27 +248,20 @@ def reader_thread(ser, osc_client, verbose=False):
                 switch_pos = (flags >> 2) & 0x03
 
                 # Send inputs as OSC voltages (top-to-bottom: audio, CV)
-                osc_client.send_message("/ch/1", native_to_volts(audio1))
-                osc_client.send_message("/ch/2", native_to_volts(audio2))
-                osc_client.send_message("/ch/3", native_to_volts(cv1))
-                osc_client.send_message("/ch/4", native_to_volts(cv2))
+                send_if_changed("/ch/1", native_to_volts(audio1))
+                send_if_changed("/ch/2", native_to_volts(audio2))
+                send_if_changed("/ch/3", native_to_volts(cv1))
+                send_if_changed("/ch/4", native_to_volts(cv2))
 
                 # Send knobs as 0.0-1.0
-                osc_client.send_message("/knob/main", knob_main / 4095.0)
-                osc_client.send_message("/knob/x", knob_x / 4095.0)
-                osc_client.send_message("/knob/y", knob_y / 4095.0)
+                send_if_changed("/knob/main", knob_main / 4095.0)
+                send_if_changed("/knob/x", knob_x / 4095.0)
+                send_if_changed("/knob/y", knob_y / 4095.0)
 
-                # Send switch and pulses
-                osc_client.send_message("/switch", float(switch_pos))
-                osc_client.send_message("/pulse/1", 1.0 if pulse1 else 0.0)
-                osc_client.send_message("/pulse/2", 1.0 if pulse2 else 0.0)
-
-                if verbose:
-                    print(f"  [OSC out] /ch/1-4={native_to_volts(audio1):.2f},"
-                          f"{native_to_volts(audio2):.2f},"
-                          f"{native_to_volts(cv1):.2f},"
-                          f"{native_to_volts(cv2):.2f} "
-                          f"/knob={knob_main / 4095.0:.2f},{knob_x / 4095.0:.2f},{knob_y / 4095.0:.2f}")
+                # Send switch and pulses (always send — discrete values)
+                send_if_changed("/switch", float(switch_pos))
+                send_if_changed("/pulse/1", 1.0 if pulse1 else 0.0)
+                send_if_changed("/pulse/2", 1.0 if pulse2 else 0.0)
 
         except serial.SerialException:
             print("Serial connection lost!")
@@ -296,6 +298,10 @@ def main():
     parser.add_argument(
         "--localhost", action="store_true",
         help="Listen on 127.0.0.1 only (default: 0.0.0.0, all interfaces)"
+    )
+    parser.add_argument(
+        "--threshold", "-t", type=float, default=0.005,
+        help="Change threshold for OSC output — suppress messages below this (default: 0.005)"
     )
     parser.add_argument(
         "--show-traffic", "-s", nargs="?", const="all",
@@ -361,7 +367,7 @@ def main():
     # --- Start reader thread ---
     threading.Thread(
         target=reader_thread,
-        args=(ser, client, show_out),
+        args=(ser, client, show_out, args.threshold),
         daemon=True,
     ).start()
 
