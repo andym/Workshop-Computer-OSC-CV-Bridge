@@ -123,15 +123,16 @@ protected:
     if (reportCounter >= INPUT_REPORT_INTERVAL) {
       reportCounter = 0;
 
-      input_cv[0] = CVIn1();
-      input_cv[1] = CVIn2();
-      input_audio[0] = AudioIn1();
-      input_audio[1] = AudioIn2();
+      input_cv[0] = Connected(CV1) ? CVIn1() : 0;
+      input_cv[1] = Connected(CV2) ? CVIn2() : 0;
+      input_audio[0] = Connected(Audio1) ? AudioIn1() : 0;
+      input_audio[1] = Connected(Audio2) ? AudioIn2() : 0;
       input_knobs[0] = (int16_t)KnobVal(Main);
       input_knobs[1] = (int16_t)KnobVal(X);
       input_knobs[2] = (int16_t)KnobVal(Y);
-      input_flags = (PulseIn1() ? 0x01 : 0x00) | (PulseIn2() ? 0x02 : 0x00) |
-                    ((uint8_t)SwitchVal() << 2);
+      uint8_t p1 = Connected(Pulse1) ? (PulseIn1() ? 0x01 : 0x00) : 0x00;
+      uint8_t p2 = Connected(Pulse2) ? (PulseIn2() ? 0x02 : 0x00) : 0x00;
+      input_flags = p1 | p2 | ((uint8_t)SwitchVal() << 2);
       inputs_ready = true;
     }
   }
