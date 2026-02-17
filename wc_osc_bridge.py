@@ -38,9 +38,9 @@ Workshop Computer input → OSC mapping:
   Audio In 2  →  /ch/2
   CV In 1     →  /ch/3
   CV In 2     →  /ch/4
-  Main knob   →  /knob/main  (0.0-1.0)
-  X knob      →  /knob/x     (0.0-1.0)
-  Y knob      →  /knob/y     (0.0-1.0)
+  Main knob   →  /knob/main  (0.0-6.0V)
+  X knob      →  /knob/x     (0.0-6.0V)
+  Y knob      →  /knob/y     (0.0-6.0V)
   Switch      →  /switch     (0=down, 1=middle, 2=up)
   Pulse In 1  →  /pulse/1    (1.0 or 0.0)
   Pulse In 2  →  /pulse/2    (1.0 or 0.0)
@@ -253,10 +253,10 @@ def reader_thread(ser, osc_client, verbose=False, threshold=0.005):
                 send_if_changed("/ch/3", native_to_volts(cv1))
                 send_if_changed("/ch/4", native_to_volts(cv2))
 
-                # Send knobs as 0.0-1.0
-                send_if_changed("/knob/main", knob_main / 4095.0)
-                send_if_changed("/knob/x", knob_x / 4095.0)
-                send_if_changed("/knob/y", knob_y / 4095.0)
+                # Send knobs as 0.0-6.0V
+                send_if_changed("/knob/main", knob_main * 6.0 / 4095.0)
+                send_if_changed("/knob/x", knob_x * 6.0 / 4095.0)
+                send_if_changed("/knob/y", knob_y * 6.0 / 4095.0)
 
                 # Send switch and pulses (always send — discrete values)
                 send_if_changed("/switch", float(switch_pos))
