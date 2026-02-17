@@ -31,13 +31,14 @@ Scanning for Workshop Computer...
   candidate: /dev/cu.usbmodem101  (Pico)
 Opening serial: /dev/cu.usbmodem101
 OSC send → 127.0.0.1:7001  (WC inputs → OSC)
-OSC recv ← 127.0.0.1:7000  (OSC → WC outputs)
+OSC recv ← 0.0.0.0:7000  (OSC → WC outputs)
+Zeroconf: advertising as 'WC OSC Bridge' on 192.168.1.185:7000
 
 Bridge running (send-on-receive, out=10B in=16B). Ctrl+C to quit.
 
-  OSC config:
-    Client (sends to bridge):  IP 127.0.0.1  Port 7000
-    Server (receives from bridge):  IP 127.0.0.1  Port 7001
+  Local IP: 192.168.1.185
+  Send to bridge:      port 7000  (/ch/1-4, /pulse/1-2)
+  Receive from bridge: port 7001  (/ch/1-4, /knob/*, /switch, /pulse/1-2)
 ```
 
 If you can't connect, power cycle the workshop and try again.
