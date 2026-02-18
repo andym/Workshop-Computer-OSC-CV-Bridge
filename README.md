@@ -4,6 +4,8 @@
 
 This card and python allow you to run a bi-directional bridge translating OSC messages to and from CV on the [Music Thing Modular Workshop](https://www.musicthing.co.uk/workshopsystem/) computer.
 
+You can run TouchOSC on an iPad and send messages to and from the workshop, or you can run software modules in VCV Rack and send signals to and from the WorkShop Computer inputs and outputs.
+
 OSC <-> Python server <-> Workshop Computer
 
 All the inputs and outputs are used, and the 3 knobs and switch also send OSC messages.
